@@ -1,12 +1,18 @@
 import puppeteer from 'puppeteer';
 
+type resultProperty = {
+  title: string;
+  content: string[];
+};
+
 async function scrapeData(year: number, month: number) {
   const BASE_URL = `https://saintek.uin-suka.ac.id/id/berita/arsip?y=${year}&m=${month}`;
   const browser = await puppeteer.launch({
     headless: true,
   });
 
-  const allValidUrls: (string | null)[] = [];
+  const validUrls: (string | null)[] = [];
+  const result: resultProperty[] = [];
 
   try {
     const page = await browser.newPage();
@@ -29,7 +35,7 @@ async function scrapeData(year: number, month: number) {
         });
       });
 
-      allValidUrls.push(...urlsOnPage);
+      validUrls.push(...urlsOnPage);
 
       const nextButtonParent = await page.$(
         'xpath/.//li[contains(@class, "page-item") and .//a[.//i[contains(@class, "fa-angle-right")]]]'
@@ -59,11 +65,38 @@ async function scrapeData(year: number, month: number) {
     }
 
     await page.close();
+
+    for (const url of validUrls) {
+      if (url) {
+        const page = await browser.newPage();
+        await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
+
+        const content = await page.evaluate(() => {
+          const title =
+            document.querySelector('h1')?.innerText ||
+            document.querySelector('h2')?.innerText;
+
+          const contentArray = Array.from(
+            document.querySelector('.post-content')?.children ?? []
+          );
+
+          const content = contentArray.map(children => {
+            return (children as HTMLElement)?.innerText;
+          });
+
+          return { title: title ? title : 'N/A', content };
+        });
+        result.push({ ...content });
+        await page.close();
+      } else {
+        throw new Error('Link can not be undefined');
+      }
+    }
   } catch (error: any) {
     console.error(`Gagal scrape: ${error.message}`);
   }
   await browser.close();
-  console.log(JSON.stringify({ allValidUrls }, null, 2));
+  console.log(JSON.stringify(result));
 }
 
-scrapeData(2025, 8); // Using a date with known multiple pages for testing
+scrapeData(2025, 8);
