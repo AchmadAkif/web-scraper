@@ -1,57 +1,102 @@
 import puppeteer from 'puppeteer';
 
-async function scrapeData(urls: string[]) {
+type resultProperty = {
+  title: string;
+  content: string[];
+};
+
+async function scrapeData(year: number, month: number) {
+  const BASE_URL = `https://saintek.uin-suka.ac.id/id/berita/arsip?y=${year}&m=${month}`;
   const browser = await puppeteer.launch({
     headless: true,
   });
 
-  const scrapedData = [];
+  const validUrls: (string | null)[] = [];
+  const result: resultProperty[] = [];
 
-  for (const url of urls) {
-    try {
-      const page = await browser.newPage();
-      await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
+  try {
+    const page = await browser.newPage();
+    await page.goto(BASE_URL, {
+      waitUntil: 'domcontentloaded',
+      timeout: 30000,
+    });
 
-      const data = await page.evaluate(() => {
-        const title =
-          document.querySelector('h1')?.innerText ||
-          document.querySelector('h2')?.innerText;
-
-        const contentArray = Array.from(
-          document.querySelector('.post-content')?.children ?? []
+    while (true) {
+      const urlsOnPage = await page.evaluate(() => {
+        const anchorTags = Array.from(
+          document.querySelectorAll(`.blog-posts a`) ?? []
         );
-
-        const content = contentArray.map(children => {
-          return (children as HTMLElement)?.innerText;
+        const anchorHref = anchorTags.map(children => {
+          return (children as HTMLElement)?.getAttribute('href');
         });
 
-        return { title, content };
+        return anchorHref.filter(url => {
+          return url && !url.startsWith('#');
+        });
       });
 
-      scrapedData.push({ ...data });
-      await page.close();
-    } catch (error: any) {
-      console.error(`Gagal scrape ${url}: ${error.message}`);
-      scrapedData.push({
-        url,
-        title: 'ERROR',
-        text: `Gagal akses halaman. (${error.message})`,
-      });
+      validUrls.push(...urlsOnPage);
+
+      const nextButtonParent = await page.$(
+        'xpath/.//li[contains(@class, "page-item") and .//a[.//i[contains(@class, "fa-angle-right")]]]'
+      );
+      const isNextDisabled =
+        nextButtonParent &&
+        (await page.evaluate(
+          el => el.classList.contains('disabled'),
+          nextButtonParent
+        ));
+
+      if (!isNextDisabled) {
+        const nextButton = await page.$(
+          'xpath/.//a[contains(@class, "page-link") and .//i[contains(@class, "fa-angle-right")]]'
+        );
+        if (nextButton) {
+          await Promise.all([
+            page.waitForNetworkIdle({ idleTime: 500 }),
+            nextButton.click(),
+          ]);
+        } else {
+          break;
+        }
+      } else {
+        break;
+      }
     }
+
+    await page.close();
+
+    for (const url of validUrls) {
+      if (url) {
+        const page = await browser.newPage();
+        await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
+
+        const content = await page.evaluate(() => {
+          const title =
+            document.querySelector('h1')?.innerText ||
+            document.querySelector('h2')?.innerText;
+
+          const contentArray = Array.from(
+            document.querySelector('.post-content')?.children ?? []
+          );
+
+          const content = contentArray.map(children => {
+            return (children as HTMLElement)?.innerText;
+          });
+
+          return { title: title ? title : 'N/A', content };
+        });
+        result.push({ ...content });
+        await page.close();
+      } else {
+        throw new Error('Link can not be undefined');
+      }
+    }
+  } catch (error: any) {
+    console.error(`Gagal scrape: ${error.message}`);
   }
   await browser.close();
-  console.log(JSON.stringify(scrapedData));
+  console.log(JSON.stringify(result));
 }
 
-scrapeData([
-  'https://saintek.uin-suka.ac.id/id/show/berita/12419/jurnal-jiehis-dan-kaunia-terakreditasi-sinta',
-  'https://saintek.uin-suka.ac.id/id/show/berita/12418/uin-sunan-kalijaga-undergoes-asiin-accreditation-to-strengthen-global-academic-standards',
-  'https://saintek.uin-suka.ac.id/id/show/berita/12189/three-students-from-the-faculty-of-science-and-technology-participate-in-the-asean-student-mobility-programme-2025-in-malaysia',
-  'https://saintek.uin-suka.ac.id/id/show/berita/12472/pengukuhan-guru-besar-prof-dr-susy-yunita-prabawati-msi-dalam-bidang-sintesis-material-organik-dan-bahan-alam',
-  'https://saintek.uin-suka.ac.id/id/show/berita/12464/akreditasi-prodi-magister-teknik-industri-2025',
-  'https://saintek.uin-suka.ac.id/id/show/berita/12523/himbauan-dan-informasi-layanan-masukansaranpengaduan-fst-uin-sunan-kalijaga',
-  'https://saintek.uin-suka.ac.id/id/show/berita/12514/pengabdian-kepada-masyarakat-di-desa-watukelir-kecamatan-ayah-kabupaten-kebumen-jawa-tegah',
-  'https://saintek.uin-suka.ac.id/id/show/berita/12502/rapat-pendampingan-pengembangan-karir-dosen',
-  'https://saintek.uin-suka.ac.id/id/show/berita/12500/rumahku-syurgaku-kisah-prof-maizer-dan-fondasi-cinta-fakultas-sains-dan-teknologi',
-  'https://saintek.uin-suka.ac.id/id/show/berita/12573/reviu-kurikulum-program-studi-di-lingkungan-fst-uin-sunan-kalijaga-2024',
-]);
+scrapeData(2025, 8);
