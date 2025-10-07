@@ -1,12 +1,12 @@
 import puppeteer from 'puppeteer';
 
-async function scrapeData(year: number, month: number, page: number = 1) {
-  const BASE_URL = `https://saintek.uin-suka.ac.id/id/berita/arsip?y=${year}&m=${month}&page=${page}`;
+async function scrapeData(year: number, month: number) {
+  const BASE_URL = `https://saintek.uin-suka.ac.id/id/berita/arsip?y=${year}&m=${month}`;
   const browser = await puppeteer.launch({
     headless: true,
   });
 
-  const scrapedData = [];
+  const allValidUrls: (string | null)[] = [];
 
   try {
     const page = await browser.newPage();
@@ -15,32 +15,55 @@ async function scrapeData(year: number, month: number, page: number = 1) {
       timeout: 30000,
     });
 
-    const data = await page.evaluate(() => {
-      const anchorTags = Array.from(
-        document.querySelectorAll(`.blog-posts a`) ?? []
+    while (true) {
+      const urlsOnPage = await page.evaluate(() => {
+        const anchorTags = Array.from(
+          document.querySelectorAll(`.blog-posts a`) ?? []
+        );
+        const anchorHref = anchorTags.map(children => {
+          return (children as HTMLElement)?.getAttribute('href');
+        });
+
+        return anchorHref.filter(url => {
+          return url && !url.startsWith('#');
+        });
+      });
+
+      allValidUrls.push(...urlsOnPage);
+
+      const nextButtonParent = await page.$(
+        'xpath/.//li[contains(@class, "page-item") and .//a[.//i[contains(@class, "fa-angle-right")]]]'
       );
-      const anchorHref = anchorTags.map(children => {
-        return (children as HTMLElement)?.getAttribute('href');
-      });
+      const isNextDisabled =
+        nextButtonParent &&
+        (await page.evaluate(
+          el => el.classList.contains('disabled'),
+          nextButtonParent
+        ));
 
-      const validUrls = anchorHref.filter(url => {
-        return url && !url.startsWith('#');
-      });
+      if (!isNextDisabled) {
+        const nextButton = await page.$(
+          'xpath/.//a[contains(@class, "page-link") and .//i[contains(@class, "fa-angle-right")]]'
+        );
+        if (nextButton) {
+          await Promise.all([
+            page.waitForNetworkIdle({ idleTime: 500 }),
+            nextButton.click(),
+          ]);
+        } else {
+          break;
+        }
+      } else {
+        break;
+      }
+    }
 
-      return { validUrls };
-    });
-
-    scrapedData.push({ ...data });
     await page.close();
   } catch (error: any) {
-    console.error(`Gagal scrape`);
-    scrapedData.push({
-      title: 'ERROR',
-      text: `Gagal akses halaman. (${error.message})`,
-    });
+    console.error(`Gagal scrape: ${error.message}`);
   }
   await browser.close();
-  console.log(JSON.stringify(scrapedData));
+  console.log(JSON.stringify({ allValidUrls }, null, 2));
 }
 
-scrapeData(2024, 7, 2);
+scrapeData(2025, 8); // Using a date with known multiple pages for testing
