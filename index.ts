@@ -1,8 +1,23 @@
 import puppeteer from 'puppeteer';
+import fs from 'fs/promises';
 
 type resultProperty = {
   title: string;
   content: string[];
+};
+
+const printJSON = async (
+  year: number,
+  month: number,
+  result: resultProperty[]
+) => {
+  try {
+    const outputFilename = `scraped_data_${year}_${month}.json`;
+    await fs.writeFile(outputFilename, JSON.stringify(result, null, 2));
+    console.log(`Scraping complete. Data saved to ${outputFilename}`);
+  } catch (error) {
+    console.error('Error writing file:', error);
+  }
 };
 
 async function scrapeData(year: number, month: number) {
@@ -96,7 +111,9 @@ async function scrapeData(year: number, month: number) {
     console.error(`Gagal scrape: ${error.message}`);
   }
   await browser.close();
-  console.log(JSON.stringify(result));
+  await printJSON(year, month, result);
+
+  return;
 }
 
 scrapeData(2025, 8);
