@@ -14,10 +14,14 @@ const printJSON = async (
 ) => {
   try {
     const outputFilename = `scraped_data_${year}_${month}.json`;
-    await fs.writeFile(outputFilename, JSON.stringify(result, null, 2), 'utf-8');
-    console.log(`✅ File JSON berhasil disimpan: ${outputFilename}`);
+    await fs.writeFile(
+      outputFilename,
+      JSON.stringify(result, null, 2),
+      'utf-8'
+    );
+    console.log(`✅ JSON file generated: ${outputFilename}`);
   } catch (error) {
-    console.error('❌ Gagal saat menulis file JSON:', error);
+    console.error('❌ Failed to generate JSON file:', error);
   }
 };
 
@@ -27,7 +31,7 @@ const printCSV = async (
   result: resultProperty[]
 ) => {
   if (result.length === 0) {
-    console.log('⚠️ Tidak ada data untuk disimpan ke CSV.');
+    console.log('⚠️ No data to write on CSV file.');
     return;
   }
   try {
@@ -41,15 +45,14 @@ const printCSV = async (
 
     const outputFilename = `scraped_data_${year}_${month}.csv`;
     await fs.writeFile(outputFilename, csv, 'utf-8');
-    console.log(`✅ File CSV berhasil disimpan: ${outputFilename}`);
+    console.log(`✅ CSV file generated: ${outputFilename}`);
   } catch (error) {
-    console.error('❌ Gagal saat menulis file CSV:', error);
+    console.error('❌ Failed to generate CSV file:', error);
   }
 };
 
-
 async function scrapeData(year: number, month: number) {
-  const BASE_URL = `https://syariah.uin-suka.ac.id/id/berita/arsip?y=${year}&m=${month}`;
+  const BASE_URL = `https://saintek.uin-suka.ac.id/id/berita/arsip?y=${year}&m=${month}`;
   const browser = await puppeteer.launch({
     headless: true,
   });
@@ -57,7 +60,7 @@ async function scrapeData(year: number, month: number) {
   const validUrls: (string | null)[] = [];
   const result: resultProperty[] = [];
 
-  console.log(`Memulai scraping untuk ${month}/${year}...`);
+  console.log(`Starting scraping for news on ${month}/${year}...`);
   try {
     const page = await browser.newPage();
     await page.goto(BASE_URL, {
@@ -78,23 +81,37 @@ async function scrapeData(year: number, month: number) {
           return url && !url.startsWith('#');
         });
       });
+
       validUrls.push(...urlsOnPage);
 
-      const nextButton = await page.$(
-        'li.page-item:not(.disabled) a.page-link i.fa-angle-right'
+      const nextButtonParent = await page.$(
+        'xpath/.//li[contains(@class, "page-item") and .//a[.//i[contains(@class, "fa-angle-right")]]]'
       );
-      
-      if (nextButton) {
-        await Promise.all([
-          page.waitForNavigation({ waitUntil: 'domcontentloaded' }),
-          nextButton.click(),
-        ]);
+      const isNextDisabled =
+        nextButtonParent &&
+        (await page.evaluate(
+          el => el.classList.contains('disabled'),
+          nextButtonParent
+        ));
+
+      if (!isNextDisabled) {
+        const nextButton = await page.$(
+          'xpath/.//a[contains(@class, "page-link") and .//i[contains(@class, "fa-angle-right")]]'
+        );
+        if (nextButton) {
+          await Promise.all([
+            page.waitForNetworkIdle({ idleTime: 500 }),
+            nextButton.click(),
+          ]);
+        } else {
+          break;
+        }
       } else {
         break;
       }
     }
     await page.close();
-    console.log(`Mengumpulkan ${validUrls.length} URL berita.`);
+    console.log(`Collecting ${validUrls.length} URL.`);
 
     for (const url of validUrls) {
       if (url) {
@@ -121,16 +138,16 @@ async function scrapeData(year: number, month: number) {
       }
     }
   } catch (error: any) {
-    console.error(`❌ Gagal scrape: ${error.message}`);
+    console.error(`❌ Failed to scrape: ${error.message}`);
   }
 
   await browser.close();
-  console.log(`\nProses scraping selesai. Menyimpan hasil...`);
-  
+  console.log(`\nScraping completed. Saving result...`);
+
   await printJSON(year, month, result);
   await printCSV(year, month, result);
 
   return;
 }
 
-scrapeData(2024, 2);
+scrapeData(2025, 8);
