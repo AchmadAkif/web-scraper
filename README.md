@@ -8,9 +8,9 @@ Proyek ini adalah skrip sederhana berbasis **TypeScript** yang menggunakan **Pup
 
 Ikuti langkah-langkah berikut untuk menyiapkan dan menginstal proyek ini.
 
-### 1️⃣ Kloning Repositori (Opsional)
+### 1️⃣ Kloning Repositori (Opsional) / Download ZIP
 
-Jika kode ini ada di repositori Git, kloning terlebih dahulu. Jika tidak, cukup buat folder baru dan letakkan file `index.ts` di dalamnya.
+Jika kode ini ada di repositori Git, kloning terlebih dahulu. Atau download langsung ZIP.
 
 ```bash
 git clone <url-repositori-anda>
@@ -19,47 +19,13 @@ cd <nama-folder-proyek>
 
 ---
 
-### 2️⃣ Inisialisasi Proyek
+### 2️⃣ Instal Dependensi Proyek
 
-Buka terminal di dalam folder proyek dan jalankan perintah berikut untuk membuat file `package.json`.
-
-```bash
-npm init -y
-```
-
----
-
-### 3️⃣ Instal Dependensi Proyek
-
-Instal **Puppeteer** dan **json2csv** yang dibutuhkan saat aplikasi berjalan.
+Instal seluruh dependensi proyek.
 
 ```bash
-npm install puppeteer json2csv
+npm install
 ```
-
----
-
-### 4️⃣ Instal Dependensi Pengembangan
-
-Instal **TypeScript** dan type definitions yang hanya dibutuhkan selama proses pengembangan.
-
-```bash
-npm install --save-dev typescript @types/node @types/json2csv ts-node
-```
-
----
-
-### 5️⃣ Buat Konfigurasi TypeScript
-
-Jalankan perintah ini untuk membuat file `tsconfig.json` dengan konfigurasi default.
-
-```bash
-npx tsc --init
-```
-
-File ini akan memberitahu `ts-node` cara mengompilasi dan menjalankan kode TypeScript Anda.
-
----
 
 ## 🏃‍♂️ Penggunaan
 
@@ -81,7 +47,7 @@ scrapeData(2024, 5);
 Kembali ke terminal Anda dan jalankan perintah berikut:
 
 ```bash
-npx ts-node index.ts
+npm start
 ```
 
 Skrip akan mulai berjalan, dan Anda akan melihat log prosesnya di terminal.
